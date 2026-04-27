@@ -1,30 +1,23 @@
 {
-  "name": "decky-plugin-template",
-  "version": "0.0.1",
-  "description": "A template to quickly create decky plugins from scratch, based on TypeScript and webpack",
+  "name": "pixel-buds-decky",
+  "version": "0.1.0",
+  "description": "Monitor battery and control ANC for Google Pixel Buds Pro on Steam Deck",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/SteamDeckHomebrew/decky-plugin-template.git"
-  },
   "keywords": [
     "decky",
     "plugin",
-    "plugin-template",
     "steam-deck",
-    "deck"
+    "pixel-buds",
+    "bluetooth",
+    "anc"
   ],
-  "author": "You <you@you.tld>",
-  "license": "BSD-3-Clause",
-  "bugs": {
-    "url": "https://github.com/SteamDeckHomebrew/decky-plugin-template/issues"
-  },
-  "homepage": "https://github.com/SteamDeckHomebrew/decky-plugin-template#readme",
+  "author": "Phill Moon <philljm544@gmail.com>",
+  "license": "GPL-3.0",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
     "@decky/ui": "^4.11.0",

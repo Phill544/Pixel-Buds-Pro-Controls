@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-echo "Container's IP address: `awk 'END{print $1}' /etc/hosts`"
-
-cd /backend
-
-make
+mkdir -p /backend/out
+cp /build/target/release/pbpctrl /backend/out/pbpctrl
+echo "pbpctrl binary copied to /backend/out/pbpctrl"

@@ -1,115 +1,173 @@
 import {
-  ButtonItem,
   PanelSection,
   PanelSectionRow,
-  Navigation,
-  staticClasses
-} from "@decky/ui";
-import {
-  addEventListener,
-  removeEventListener,
-  callable,
+  DropdownItem,
+  Field,
+  ButtonItem,
   definePlugin,
-  toaster,
-  // routerHook
-} from "@decky/api"
-import { useState } from "react";
-import { FaShip } from "react-icons/fa";
+  staticClasses,
+} from "@decky/ui";
+import { callable } from "@decky/api";
+import { useState, useEffect, useCallback, FC } from "react";
+import { FaHeadphones, FaSyncAlt } from "react-icons/fa";
 
-// import logo from "../assets/logo.png";
+interface BatteryInfo {
+  left: number;
+  right: number;
+  case: number;
+  left_charging: boolean;
+  right_charging: boolean;
+  case_charging: boolean;
+}
 
-// This function calls the python function "add", which takes in two numbers and returns their sum (as a number)
-// Note the type annotations:
-//  the first one: [first: number, second: number] is for the arguments
-//  the second one: number is for the return value
-const add = callable<[first: number, second: number], number>("add");
+const getBattery = callable<[], BatteryInfo>("get_battery");
+const getAnc = callable<[], string>("get_anc");
+const setAnc = callable<[mode: string], boolean>("set_anc");
 
-// This function calls the python function "start_timer", which takes in no arguments and returns nothing.
-// It starts a (python) timer which eventually emits the event 'timer_event'
-const startTimer = callable<[], void>("start_timer");
+const ANC_OPTIONS = [
+  { data: "off", label: "Off" },
+  { data: "active", label: "Noise Cancellation" },
+  { data: "aware", label: "Transparency" },
+];
 
-function Content() {
-  const [result, setResult] = useState<number | undefined>();
+function batteryLabel(percent: number, charging: boolean): string {
+  if (percent < 0) return "--";
+  const icon = charging ? " ⚡" : "";
+  return `${percent}%${icon}`;
+}
 
-  const onClick = async () => {
-    const result = await add(Math.random(), Math.random());
-    setResult(result);
-  };
+function batteryColor(percent: number): string {
+  if (percent < 0) return "#999";
+  if (percent <= 10) return "#e74c3c";
+  if (percent <= 25) return "#f39c12";
+  return "#2ecc71";
+}
+
+const BatteryRow: FC<{ label: string; percent: number; charging: boolean }> = ({
+  label,
+  percent,
+  charging,
+}) => (
+  <PanelSectionRow>
+    <Field
+      label={label}
+      bottomSeparator="none"
+    >
+      <span style={{ color: batteryColor(percent), fontWeight: "bold" }}>
+        {batteryLabel(percent, charging)}
+      </span>
+    </Field>
+  </PanelSectionRow>
+);
+
+const Content: FC = () => {
+  const [battery, setBattery] = useState<BatteryInfo | null>(null);
+  const [ancMode, setAncMode] = useState<string>("off");
+  const [connected, setConnected] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const bat = await getBattery();
+      setBattery(bat);
+      setConnected(true);
+      const anc = await getAnc();
+      setAncMode(anc);
+    } catch {
+      setConnected(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  if (loading) {
+    return (
+      <PanelSection title="Pixel Buds Pro">
+        <PanelSectionRow>
+          <Field label="Status">Connecting...</Field>
+        </PanelSectionRow>
+      </PanelSection>
+    );
+  }
+
+  if (!connected) {
+    return (
+      <PanelSection title="Pixel Buds Pro">
+        <PanelSectionRow>
+          <Field label="Status">Not connected</Field>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={refresh}>
+            <FaSyncAlt style={{ marginRight: 8 }} />
+            Retry Connection
+          </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+    );
+  }
 
   return (
-    <PanelSection title="Panel Section">
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={onClick}
-        >
-          {result ?? "Add two numbers via Python"}
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => startTimer()}
-        >
-          {"Start Python timer"}
-        </ButtonItem>
-      </PanelSectionRow>
-
-      {/* <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow> */}
-
-      {/*<PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.Navigate("/decky-plugin-test");
-            Navigation.CloseSideMenus();
-          }}
-        >
-          Router
-        </ButtonItem>
-      </PanelSectionRow>*/}
-    </PanelSection>
+    <>
+      <PanelSection title="Battery">
+        <BatteryRow
+          label="Left Bud"
+          percent={battery?.left ?? -1}
+          charging={battery?.left_charging ?? false}
+        />
+        <BatteryRow
+          label="Right Bud"
+          percent={battery?.right ?? -1}
+          charging={battery?.right_charging ?? false}
+        />
+        <BatteryRow
+          label="Case"
+          percent={battery?.case ?? -1}
+          charging={battery?.case_charging ?? false}
+        />
+      </PanelSection>
+      <PanelSection title="Noise Control">
+        <PanelSectionRow>
+          <DropdownItem
+            label="ANC Mode"
+            rgOptions={ANC_OPTIONS}
+            selectedOption={ancMode}
+            onChange={async (option) => {
+              const mode = option.data as string;
+              setAncMode(mode);
+              await setAnc(mode);
+            }}
+          />
+        </PanelSectionRow>
+      </PanelSection>
+      <PanelSection>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={refresh}>
+            <FaSyncAlt style={{ marginRight: 8 }} />
+            Refresh
+          </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+    </>
   );
 };
 
 export default definePlugin(() => {
-  console.log("Template plugin initializing, this is called once on frontend startup")
-
-  // serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-  //   exact: true,
-  // });
-
-  // Add an event listener to the "timer_event" event from the backend
-  const listener = addEventListener<[
-    test1: string,
-    test2: boolean,
-    test3: number
-  ]>("timer_event", (test1, test2, test3) => {
-    console.log("Template got timer_event with:", test1, test2, test3)
-    toaster.toast({
-      title: "template got timer_event",
-      body: `${test1}, ${test2}, ${test3}`
-    });
-  });
-
   return {
-    // The name shown in various decky menus
-    name: "Test Plugin",
-    // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Decky Example Plugin</div>,
-    // The content of your plugin's menu
+    name: "Pixel Buds Pro",
+    titleView: (
+      <div className={staticClasses.Title}>
+        <FaHeadphones style={{ marginRight: 8 }} />
+        Pixel Buds Pro
+      </div>
+    ),
     content: <Content />,
-    // The icon displayed in the plugin list
-    icon: <FaShip />,
-    // The function triggered when your plugin unloads
-    onDismount() {
-      console.log("Unloading")
-      removeEventListener("timer_event", listener);
-      // serverApi.routerHook.removeRoute("/decky-plugin-test");
-    },
+    icon: <FaHeadphones />,
+    onDismount() {},
   };
 });

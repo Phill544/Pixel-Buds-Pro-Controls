@@ -1,57 +1,132 @@
 import os
-
-# The decky plugin module is located at decky-loader/plugin
-# For easy intellisense checkout the decky-loader code repo
-# and add the `decky-loader/plugin/imports` path to `python.analysis.extraPaths` in `.vscode/settings.json`
-import decky
+import re
 import asyncio
 
+import decky
+
+
 class Plugin:
-    # A normal method. It can be called from the TypeScript side using @decky/api.
-    async def add(self, left: int, right: int) -> int:
-        return left + right
+    pbpctrl_path: str = ""
+    _lock: asyncio.Lock = None
 
-    async def long_running(self):
-        await asyncio.sleep(15)
-        # Passing through a bunch of random data, just as an example
-        await decky.emit("timer_event", "Hello from the backend!", True, 2)
-
-    # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
-        self.loop = asyncio.get_event_loop()
-        decky.logger.info("Hello World!")
+        self._lock = asyncio.Lock()
+        self.pbpctrl_path = os.path.join(decky.DECKY_PLUGIN_DIR, "bin", "pbpctrl")
+        if os.path.exists(self.pbpctrl_path):
+            os.chmod(self.pbpctrl_path, 0o755)
+            decky.logger.info(f"pbpctrl found at {self.pbpctrl_path}")
+        else:
+            decky.logger.error(f"pbpctrl not found at {self.pbpctrl_path}")
 
-    # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
-    # completely removed
     async def _unload(self):
-        decky.logger.info("Goodnight World!")
         pass
 
-    # Function called after `_unload` during uninstall, utilize this to clean up processes and other remnants of your
-    # plugin that may remain on the system
     async def _uninstall(self):
-        decky.logger.info("Goodbye World!")
         pass
 
-    async def start_timer(self):
-        self.loop.create_task(self.long_running())
-
-    # Migrations that should be performed before entering `_main()`.
     async def _migration(self):
-        decky.logger.info("Migrating")
-        # Here's a migration example for logs:
-        # - `~/.config/decky-template/template.log` will be migrated to `decky.decky_LOG_DIR/template.log`
-        decky.migrate_logs(os.path.join(decky.DECKY_USER_HOME,
-                                               ".config", "decky-template", "template.log"))
-        # Here's a migration example for settings:
-        # - `~/homebrew/settings/template.json` is migrated to `decky.decky_SETTINGS_DIR/template.json`
-        # - `~/.config/decky-template/` all files and directories under this root are migrated to `decky.decky_SETTINGS_DIR/`
-        decky.migrate_settings(
-            os.path.join(decky.DECKY_HOME, "settings", "template.json"),
-            os.path.join(decky.DECKY_USER_HOME, ".config", "decky-template"))
-        # Here's a migration example for runtime data:
-        # - `~/homebrew/template/` all files and directories under this root are migrated to `decky.decky_RUNTIME_DIR/`
-        # - `~/.local/share/decky-template/` all files and directories under this root are migrated to `decky.decky_RUNTIME_DIR/`
-        decky.migrate_runtime(
-            os.path.join(decky.DECKY_HOME, "template"),
-            os.path.join(decky.DECKY_USER_HOME, ".local", "share", "decky-template"))
+        pass
+
+    async def get_battery(self) -> dict:
+        output = await self._run_pbpctrl("show", "battery")
+        return self._parse_battery(output)
+
+    async def get_anc(self) -> str:
+        output = await self._run_pbpctrl("get", "anc")
+        return output.strip().lower()
+
+    async def set_anc(self, mode: str) -> bool:
+        mode_map = {
+            "off": "off",
+            "active": "active",
+            "aware": "aware",
+        }
+        pbpctrl_mode = mode_map.get(mode.lower())
+        if not pbpctrl_mode:
+            decky.logger.error(f"Unknown ANC mode: {mode}")
+            return False
+        await self._run_pbpctrl("set", "anc", pbpctrl_mode)
+        return True
+
+    async def is_connected(self) -> bool:
+        try:
+            await self._run_pbpctrl("show", "battery")
+            return True
+        except Exception:
+            return False
+
+    async def get_device_info(self) -> dict:
+        try:
+            software = await self._run_pbpctrl("show", "software")
+        except Exception:
+            software = ""
+        try:
+            hardware = await self._run_pbpctrl("show", "hardware")
+        except Exception:
+            hardware = ""
+        return {"software": software.strip(), "hardware": hardware.strip()}
+
+    async def _run_pbpctrl(self, *args: str) -> str:
+        if not os.path.exists(self.pbpctrl_path):
+            raise Exception("pbpctrl binary not found")
+
+        async with self._lock:
+            return await self._run_pbpctrl_locked(*args)
+
+    async def _run_pbpctrl_locked(self, *args: str) -> str:
+        cmd = [self.pbpctrl_path] + list(args)
+        decky.logger.info(f"Running: {' '.join(cmd)}")
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise Exception("pbpctrl timed out")
+
+        if proc.returncode != 0:
+            err = stderr.decode().strip()
+            decky.logger.error(f"pbpctrl error: {err}")
+            raise Exception(f"pbpctrl failed: {err}")
+
+        return stdout.decode()
+
+    @staticmethod
+    def _parse_battery(output: str) -> dict:
+        result = {
+            "left": -1,
+            "right": -1,
+            "case": -1,
+            "left_charging": False,
+            "right_charging": False,
+            "case_charging": False,
+        }
+        for line in output.strip().split("\n"):
+            match = re.match(
+                r"\s*(case|left bud|right bud):\s+(\d+%\s+\(.+?\)|unknown)", line
+            )
+            if not match:
+                continue
+            component = match.group(1)
+            value = match.group(2)
+            if value == "unknown":
+                continue
+            pct_match = re.match(r"(\d+)%\s+\((.+?)\)", value)
+            if not pct_match:
+                continue
+            percent = int(pct_match.group(1))
+            charging = pct_match.group(2).strip() == "charging"
+            if component == "case":
+                result["case"] = percent
+                result["case_charging"] = charging
+            elif component == "left bud":
+                result["left"] = percent
+                result["left_charging"] = charging
+            elif component == "right bud":
+                result["right"] = percent
+                result["right_charging"] = charging
+        return result
