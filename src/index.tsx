@@ -8,7 +8,7 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { useState, useEffect, useCallback, FC, CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, FC, CSSProperties } from "react";
 import { FaHeadphones, FaSyncAlt } from "react-icons/fa";
 
 // ── Theme constants ──
@@ -214,7 +214,9 @@ const AncToggleGrid: FC<{ selected: string; onSelect: (id: string) => void }> = 
 
   return (
     // @ts-ignore - flow-children is a valid SP prop but not in the type defs
-    <Focusable flow-children="horizontal" style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}>
+    <Focusable flow-children="horizontal" style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}
+      onBlur={() => setFocused(null)}
+    >
       {ANC_MODES.map(mode => {
         const isActive = selected === mode.id;
         const isFocused = focused === mode.id;
@@ -248,8 +250,11 @@ const Content: FC = () => {
   const [ancMode, setAncMode] = useState<string>("off");
   const [connected, setConnected] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const pollingRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (pollingRef.current) return; // skip if previous poll still running
+    pollingRef.current = true;
     try {
       const bat = await getBattery();
       setBattery(bat);
@@ -260,12 +265,13 @@ const Content: FC = () => {
       setConnected(false);
     } finally {
       setLoading(false);
+      pollingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -308,14 +314,6 @@ const Content: FC = () => {
             await setAnc(mode);
           }}
         />
-      </PanelSection>
-      <PanelSection>
-        <PanelSectionRow>
-          <ButtonItem layout="below" onClick={refresh}>
-            <FaSyncAlt style={{ marginRight: 8 }} />
-            Refresh
-          </ButtonItem>
-        </PanelSectionRow>
       </PanelSection>
     </>
   );
