@@ -1,15 +1,22 @@
 import {
   PanelSection,
   PanelSectionRow,
-  DropdownItem,
-  Field,
   ButtonItem,
+  Field,
+  Focusable,
   definePlugin,
   staticClasses,
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { useState, useEffect, useCallback, FC } from "react";
+import { useState, useEffect, useCallback, FC, CSSProperties } from "react";
 import { FaHeadphones, FaSyncAlt } from "react-icons/fa";
+
+// ── Theme constants ──
+
+const ACCENT = "#1a9fff";
+const ACCENT_BG = "rgba(26, 159, 255, 0.09)";
+
+// ── Types ──
 
 interface BatteryInfo {
   left: number;
@@ -20,45 +27,221 @@ interface BatteryInfo {
   case_charging: boolean;
 }
 
+// ── Backend calls ──
+
 const getBattery = callable<[], BatteryInfo>("get_battery");
 const getAnc = callable<[], string>("get_anc");
 const setAnc = callable<[mode: string], boolean>("set_anc");
 
-const ANC_OPTIONS = [
-  { data: "off", label: "Off" },
-  { data: "active", label: "Noise Cancellation" },
-  { data: "aware", label: "Transparency" },
-];
-
-function batteryLabel(percent: number, charging: boolean): string {
-  if (percent < 0) return "--";
-  const icon = charging ? " ⚡" : "";
-  return `${percent}%${icon}`;
-}
+// ── Battery Icon ──
 
 function batteryColor(percent: number): string {
-  if (percent < 0) return "#999";
+  if (percent < 0) return "currentColor";
   if (percent <= 10) return "#e74c3c";
   if (percent <= 25) return "#f39c12";
   return "#2ecc71";
 }
 
-const BatteryRow: FC<{ label: string; percent: number; charging: boolean }> = ({
-  label,
+const BatteryIcon: FC<{ percent: number; charging: boolean; size?: number }> = ({
   percent,
   charging,
-}) => (
-  <PanelSectionRow>
-    <Field
-      label={label}
-      bottomSeparator="none"
-    >
-      <span style={{ color: batteryColor(percent), fontWeight: "bold" }}>
-        {batteryLabel(percent, charging)}
-      </span>
-    </Field>
-  </PanelSectionRow>
+  size = 38,
+}) => {
+  const w = size;
+  const h = size * 0.5;
+  const bodyW = w * 0.88;
+  const bodyH = h;
+  const r = h * 0.18;
+  const tipW = w * 0.08;
+  const tipH = h * 0.35;
+  const pad = 1.5;
+  const innerMaxW = bodyW - pad * 2 - 1;
+  const fillW = percent < 0 ? 0 : Math.max(0, Math.min(1, percent / 100)) * innerMaxW;
+  const color = batteryColor(percent);
+  const bx = bodyW * 0.3;
+  const by = h * 0.12;
+  const bw = bodyW * 0.38;
+  const bh = h * 0.76;
+
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
+      <rect x={0.5} y={0.5} width={bodyW - 1} height={bodyH - 1}
+            rx={r} ry={r} fill="none" stroke="currentColor" strokeWidth={1.2} opacity={0.4} />
+      <rect x={bodyW} y={(h - tipH) / 2} width={tipW} height={tipH}
+            rx={tipW * 0.4} ry={tipW * 0.4} fill="currentColor" opacity={0.4} />
+      {percent >= 0 && (
+        <rect x={pad + 0.5} y={pad + 0.5}
+              width={fillW} height={bodyH - pad * 2 - 1}
+              rx={r * 0.6} ry={r * 0.6} fill={color} />
+      )}
+      {charging && (
+        <polygon
+          points={`${bx + bw * 0.55},${by} ${bx + bw * 0.2},${by + bh * 0.52} ${bx + bw * 0.48},${by + bh * 0.48} ${bx + bw * 0.42},${by + bh} ${bx + bw * 0.8},${by + bh * 0.42} ${bx + bw * 0.52},${by + bh * 0.46}`}
+          fill="#fff" stroke={color} strokeWidth={0.3}
+        />
+      )}
+      {percent < 0 && (
+        <text x={bodyW / 2} y={h / 2 + 1} textAnchor="middle" dominantBaseline="middle"
+              fill="currentColor" opacity={0.3} fontSize={h * 0.5} fontWeight="bold">?</text>
+      )}
+    </svg>
+  );
+};
+
+// ── Battery Card + Grid ──
+
+const cardStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 6,
+  flex: 1,
+  padding: "12px 4px 10px",
+  background: "rgba(255, 255, 255, 0.06)",
+  borderRadius: 8,
+};
+
+const cardLabelStyle: CSSProperties = {
+  fontSize: 11,
+  opacity: 0.5,
+  textTransform: "uppercase",
+  letterSpacing: "0.6px",
+  fontWeight: 600,
+};
+
+const BatteryCard: FC<{ label: string; percent: number; charging: boolean }> = ({
+  label, percent, charging,
+}) => {
+  const color = batteryColor(percent);
+  const text = percent < 0 ? "--" : `${percent}%`;
+  return (
+    <div style={cardStyle}>
+      <span style={cardLabelStyle}>{label}</span>
+      <BatteryIcon percent={percent} charging={charging} size={38} />
+      <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color }}>{text}</span>
+    </div>
+  );
+};
+
+const BatteryGrid: FC<{ battery: BatteryInfo | null }> = ({ battery }) => (
+  <div style={{ display: "flex", justifyContent: "space-around", gap: 8, padding: "8px 0 4px" }}>
+    <BatteryCard label="Left" percent={battery?.left ?? -1} charging={battery?.left_charging ?? false} />
+    <BatteryCard label="Right" percent={battery?.right ?? -1} charging={battery?.right_charging ?? false} />
+    <BatteryCard label="Case" percent={battery?.case ?? -1} charging={battery?.case_charging ?? false} />
+  </div>
 );
+
+// ── ANC Icons (Google Material Symbols Rounded, filled) ──
+
+const IconNoiseControlOn: FC<{ size?: number }> = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor">
+    <path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm39-80q-39 0-70-24t-45-62q-3-8-6.5-15.5T388-355l-50-51q-26-26-42-60t-16-72q0-75 52.5-128.5T460-720q52 0 95.5 27.5T622-618q10 20-1.5 39T586-560q-12 0-21.5-6.5T550-584q-13-26-37-41t-53-15q-42 0-71 29t-29 71q0 21 7.5 40t22.5 34l55 54q14 14 22.5 30.5T482-347q5 12 15 19.5t23 7.5q11 0 20.5-5.5T555-341q5-9 14-14t20-5q23 0 35 19t1 39q-16 29-44.5 45.5T519-240Zm21-160q25 0 42.5-17.5T600-460q0-25-17.5-42.5T540-520q-25 0-42.5 17.5T480-460q0 25 17.5 42.5T540-400Z"/>
+  </svg>
+);
+
+const IconNoiseControlOff: FC<{ size?: number }> = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor">
+    <path d="M480-80q-50 0-90-9.5T313-116q-16-8-22-24.5t2-31.5q8-15 25-18.5t33 3.5q30 13 62 20t67 7q35 0 67-7t62-20q16-7 33-3.5t25 18.5q8 15 2 31.5T647-116q-37 17-77 26.5T480-80ZM160-480q0 35 7 67t20 62q7 16 3.5 33T172-293q-15 8-31.5 2T116-313q-17-37-26.5-77T80-480q0-50 9.5-90t26.5-77q8-16 24.5-22t31.5 2q15 8 18.5 25t-3.5 33q-13 30-20 62t-7 67Zm640 0q0-35-7-67t-20-62q-7-16-3.5-33t18.5-25q15-8 31.5-2t24.5 22q17 37 26.5 77t9.5 90q0 50-9.5 90T844-313q-8 16-24.5 22t-31.5-2q-15-8-18.5-25t3.5-33q13-30 20-62t7-67ZM480-800q-35 0-67 7t-62 20q-16 7-33 3.5T293-788q-8-15-2-31.5t22-24.5q37-17 77-26.5t90-9.5q50 0 90 9.5t77 26.5q16 8 22 24.5t-2 31.5q-8 15-25 18.5t-33-3.5q-30-13-62-20t-67-7Zm39 560q-39 0-70-24t-45-62q-3-8-6.5-15.5T388-355l-50-51q-26-26-42-60t-16-72q0-75 52.5-128.5T460-720q52 0 95.5 27.5T622-618q10 20-1.5 39T586-560q-12 0-21.5-6.5T550-584q-13-26-37-41t-53-15q-42 0-71 29t-29 71q0 21 7.5 40t22.5 34l55 54q14 14 22.5 30.5T482-347q5 12 15 19.5t23 7.5q11 0 20.5-5.5T555-341q5-9 14-14t20-5q23 0 35 19t1 39q-16 29-44.5 45.5T519-240Zm21-160q25 0 42.5-17.5T600-460q0-25-17.5-42.5T540-520q-25 0-42.5 17.5T480-460q0 25 17.5 42.5T540-400Z"/>
+  </svg>
+);
+
+const IconNoiseAware: FC<{ size?: number }> = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor">
+    <path d="M480-800q-17 0-28.5-11.5T440-840q0-17 11.5-28.5T480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800Zm0 720q-17 0-28.5-11.5T440-120q0-17 11.5-28.5T480-160q17 0 28.5 11.5T520-120q0 17-11.5 28.5T480-80ZM199-665q-17 0-28.5-11.5T159-705q0-17 11.5-28.5T199-745q17 0 28.5 11.5T239-705q0 17-11.5 28.5T199-665Zm562 450q-17 0-28.5-11.5T721-255q0-17 11.5-28.5T761-295q17 0 28.5 11.5T801-255q0 17-11.5 28.5T761-215ZM129-360q-17 0-28.5-11.5T89-400q0-17 11.5-28.5T129-440q17 0 28.5 11.5T169-400q0 17-11.5 28.5T129-360Zm702-160q-17 0-28.5-11.5T791-560q0-17 11.5-28.5T831-600q17 0 28.5 11.5T871-560q0 17-11.5 28.5T831-520ZM324-115q-17 0-28.5-11.5T284-155q0-17 11.5-28.5T324-195q17 0 28.5 11.5T364-155q0 17-11.5 28.5T324-115Zm312-650q-17 0-28.5-11.5T596-805q0-17 11.5-28.5T636-845q17 0 28.5 11.5T676-805q0 17-11.5 28.5T636-765Zm0 649q-17 0-28.5-11.5T596-156q0-17 11.5-28.5T636-196q17 0 28.5 11.5T676-156q0 17-11.5 28.5T636-116ZM324-765q-17 0-28.5-11.5T284-805q0-17 11.5-28.5T324-845q17 0 28.5 11.5T364-805q0 17-11.5 28.5T324-765Zm507 405q-17 0-28.5-11.5T791-400q0-17 11.5-28.5T831-440q17 0 28.5 11.5T871-400q0 17-11.5 28.5T831-360ZM128-520q-17 0-28.5-11.5T88-560q0-17 11.5-28.5T128-600q17 0 28.5 11.5T168-560q0 17-11.5 28.5T128-520Zm633-145q-17 0-28.5-11.5T721-705q0-17 11.5-28.5T761-745q17 0 28.5 11.5T801-705q0 17-11.5 28.5T761-665ZM199-215q-17 0-28.5-11.5T159-255q0-17 11.5-28.5T199-295q17 0 28.5 11.5T239-255q0 17-11.5 28.5T199-215Zm320-25q-39 0-70-24t-45-62q-3-8-6.5-15.5T388-355l-50-51q-26-26-42-60t-16-72q0-75 52.5-128.5T460-720q52 0 95.5 27.5T622-618q10 20-1.5 39T586-560q-12 0-21.5-6.5T550-584q-13-26-37-41t-53-15q-42 0-71 29t-29 71q0 21 7.5 40t22.5 34l55 54q14 14 22.5 30.5T482-347q5 12 15 19.5t23 7.5q11 0 20.5-5.5T555-341q5-9 14-14t20-5q23 0 35 19t1 39q-16 29-44.5 45.5T519-240Zm21-160q25 0 42.5-17.5T600-460q0-25-17.5-42.5T540-520q-25 0-42.5 17.5T480-460q0 25 17.5 42.5T540-400Z"/>
+  </svg>
+);
+
+// ── ANC Toggle Grid ──
+
+interface AncMode {
+  id: string;
+  label: string;
+  Icon: FC<{ size?: number }>;
+}
+
+const ANC_MODES: AncMode[] = [
+  { id: "active", label: "Noise Cancel", Icon: IconNoiseControlOn },
+  { id: "off",    label: "Off",          Icon: IconNoiseControlOff },
+  { id: "aware",  label: "Transparency", Icon: IconNoiseAware },
+];
+
+const ancCardBase: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 6,
+  padding: "12px 4px 10px",
+  background: "rgba(255, 255, 255, 0.06)",
+  borderRadius: 8,
+  border: "2px solid transparent",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+};
+
+const ancLabelBase: CSSProperties = {
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+  fontWeight: 600,
+  textAlign: "center",
+  lineHeight: 1.2,
+  opacity: 0.5,
+};
+
+const ancCardFocused: CSSProperties = {
+  ...ancCardBase,
+  background: "rgba(255, 255, 255, 0.12)",
+  borderColor: "rgba(255, 255, 255, 0.8)",
+};
+
+const AncToggleGrid: FC<{ selected: string; onSelect: (id: string) => void }> = ({
+  selected, onSelect,
+}) => {
+  const [focused, setFocused] = useState<string | null>(null);
+
+  const ancCardActive: CSSProperties = { ...ancCardBase, borderColor: ACCENT, background: ACCENT_BG };
+  const ancCardActiveFocused: CSSProperties = { ...ancCardActive, borderColor: "rgba(255, 255, 255, 0.8)" };
+
+  function getCardStyle(id: string): CSSProperties {
+    const isActive = selected === id;
+    const isFocused = focused === id;
+    if (isActive && isFocused) return ancCardActiveFocused;
+    if (isActive) return ancCardActive;
+    if (isFocused) return ancCardFocused;
+    return ancCardBase;
+  }
+
+  return (
+    // @ts-ignore - flow-children is a valid SP prop but not in the type defs
+    <Focusable flow-children="horizontal" style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}>
+      {ANC_MODES.map(mode => {
+        const isActive = selected === mode.id;
+        const isFocused = focused === mode.id;
+        return (
+          <Focusable
+            key={mode.id}
+            // @ts-ignore - focusWithin is a valid SP prop but not in the type defs
+            focusWithin={false}
+            onActivate={() => onSelect(mode.id)}
+            onFocus={() => setFocused(mode.id)}
+            onBlur={() => setFocused(f => f === mode.id ? null : f)}
+            style={getCardStyle(mode.id)}
+          >
+            <span style={{ color: isActive ? ACCENT : "inherit", opacity: isActive || isFocused ? 1 : 0.5 }}>
+              <mode.Icon size={28} />
+            </span>
+            <span style={{ ...ancLabelBase, color: isActive ? ACCENT : "inherit", opacity: isActive || isFocused ? 1 : 0.5 }}>
+              {mode.label}
+            </span>
+          </Focusable>
+        );
+      })}
+    </Focusable>
+  );
+};
+
+// ── Main Content ──
 
 const Content: FC = () => {
   const [battery, setBattery] = useState<BatteryInfo | null>(null);
@@ -115,35 +298,16 @@ const Content: FC = () => {
   return (
     <>
       <PanelSection title="Battery">
-        <BatteryRow
-          label="Left Bud"
-          percent={battery?.left ?? -1}
-          charging={battery?.left_charging ?? false}
-        />
-        <BatteryRow
-          label="Right Bud"
-          percent={battery?.right ?? -1}
-          charging={battery?.right_charging ?? false}
-        />
-        <BatteryRow
-          label="Case"
-          percent={battery?.case ?? -1}
-          charging={battery?.case_charging ?? false}
-        />
+        <BatteryGrid battery={battery} />
       </PanelSection>
       <PanelSection title="Noise Control">
-        <PanelSectionRow>
-          <DropdownItem
-            label="ANC Mode"
-            rgOptions={ANC_OPTIONS}
-            selectedOption={ancMode}
-            onChange={async (option) => {
-              const mode = option.data as string;
-              setAncMode(mode);
-              await setAnc(mode);
-            }}
-          />
-        </PanelSectionRow>
+        <AncToggleGrid
+          selected={ancMode}
+          onSelect={async (mode) => {
+            setAncMode(mode);
+            await setAnc(mode);
+          }}
+        />
       </PanelSection>
       <PanelSection>
         <PanelSectionRow>
@@ -156,6 +320,8 @@ const Content: FC = () => {
     </>
   );
 };
+
+// ── Plugin Registration ──
 
 export default definePlugin(() => {
   return {
