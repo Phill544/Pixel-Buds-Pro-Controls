@@ -33,7 +33,18 @@ class Plugin:
 
     async def get_anc(self) -> str:
         output = await self._run_pbpctrl("get", "anc")
-        return output.strip().lower()
+        raw = output.strip().lower()
+        # pbpctrl may return named values or "unknown (N)" with numeric codes
+        # Map known names
+        if raw in ("off", "active", "aware"):
+            return raw
+        # Map numeric codes: 0=off, 1=active, 2=aware
+        code_map = {"0": "off", "1": "active", "2": "aware"}
+        num_match = re.search(r"\((\d+)\)", raw)
+        if num_match:
+            code = num_match.group(1)
+            return code_map.get(code, "off")
+        return "off"
 
     async def set_anc(self, mode: str) -> bool:
         mode_map = {
