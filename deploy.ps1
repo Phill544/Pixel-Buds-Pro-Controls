@@ -9,16 +9,24 @@ $DeckUser = "deck"
 $PluginName = "pixel-buds-decky"
 $Dest = "/home/$DeckUser/homebrew/plugins/$PluginName"
 
-if (-not (Test-Path "dist/index.js")) {
-    Write-Error "dist/index.js not found. Run 'pnpm run build' first."
-    exit 1
-}
-
 if (-not (Test-Path "bin/pbpctrl")) {
     Write-Error "bin/pbpctrl not found. Build it first (see README)."
     exit 1
 }
 
+Write-Host "Building plugin..." -ForegroundColor Cyan
+& node "node_modules/rollup/dist/bin/rollup" -c
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Build failed."
+    exit 1
+}
+
+if (-not (Test-Path "dist/index.js")) {
+    Write-Error "dist/index.js missing after build."
+    exit 1
+}
+
+Write-Host ""
 Write-Host "Deploying to ${DeckUser}@${DeckIP}:${Dest}" -ForegroundColor Cyan
 
 Write-Host ""
