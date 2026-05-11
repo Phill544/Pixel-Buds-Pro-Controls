@@ -168,7 +168,7 @@ interface AncMode {
 const ANC_MODES: AncMode[] = [
   { id: "active", label: "Noise Cancel", Icon: IconNoiseControlOn },
   { id: "off",    label: "Off",          Icon: IconNoiseControlOff },
-  { id: "aware",  label: "Transparency", Icon: IconNoiseAware },
+  { id: "aware",  label: "Aware", Icon: IconNoiseAware },
 ];
 
 // Border is set via the shorthand in BOTH base and active so React's style
@@ -177,7 +177,8 @@ const ANC_MODES: AncMode[] = [
 // `borderColor` longhand in another leaves border-color cleared (falling back
 // to currentColor — visibly grey/white) when transitioning back to base.
 const ancCardBase: CSSProperties = {
-  flex: 1,
+  flex: "1 1 0",
+  minWidth: 0,
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -375,7 +376,8 @@ const Content: FC = () => {
       <PanelSection title="Battery">
         <BatteryGrid battery={battery} />
       </PanelSection>
-      <PanelSection title="Noise Control">
+      <div style={{ height: 4 }} />
+      <PanelSection title="ANC">
         <AncToggleGrid
           selected={ancMode}
           disabled={ancMode === "unknown"}
@@ -385,6 +387,25 @@ const Content: FC = () => {
           }}
         />
       </PanelSection>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "8px 0 4px",
+        opacity: 0.3,
+        fontSize: 11,
+        position: "relative",
+      }}>
+        <span style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#2ecc71",
+          position: "absolute",
+          left: "calc(50% - 46px)",
+        }} />
+        <span>Connected</span>
+      </div>
     </>
   );
 };
