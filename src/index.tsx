@@ -1,15 +1,12 @@
 import {
   PanelSection,
-  PanelSectionRow,
-  ButtonItem,
-  Field,
   Focusable,
   definePlugin,
   staticClasses,
 } from "@decky/ui";
 import { callable } from "@decky/api";
 import { useState, useEffect, useCallback, useRef, FC, CSSProperties } from "react";
-import { FaHeadphones, FaSyncAlt } from "react-icons/fa";
+import { FaHeadphones } from "react-icons/fa";
 
 // ── Theme constants ──
 
@@ -298,29 +295,50 @@ const Content: FC = () => {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  if (loading) {
+  if (loading || !connected) {
     return (
-      <PanelSection title="Pixel Buds Pro">
-        <PanelSectionRow>
-          <Field label="Status">Connecting...</Field>
-        </PanelSectionRow>
-      </PanelSection>
-    );
-  }
-
-  if (!connected) {
-    return (
-      <PanelSection title="Pixel Buds Pro">
-        <PanelSectionRow>
-          <Field label="Status">Not connected</Field>
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <ButtonItem layout="below" onClick={refresh}>
-            <FaSyncAlt style={{ marginRight: 8 }} />
-            Retry Connection
-          </ButtonItem>
-        </PanelSectionRow>
-      </PanelSection>
+      <>
+        <style>{`
+          @keyframes pbp-pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+          }
+        `}</style>
+        <PanelSection>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "20px 16px 16px",
+            gap: 12,
+          }}>
+            <FaHeadphones style={{ fontSize: 48, opacity: 0.15 }} />
+            <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.8 }}>
+              {loading ? "Connecting..." : "Not Connected"}
+            </span>
+            <span style={{ fontSize: 12, opacity: 0.4, textAlign: "center", lineHeight: 1.4, whiteSpace: "pre-line" }}>
+              {"Pair your Pixel Buds via Bluetooth\nsettings, then open the case nearby"}
+            </span>
+            <span style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 11,
+              opacity: 0.5,
+              marginTop: 4,
+            }}>
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: ACCENT,
+                animation: "pbp-pulse 1.5s ease-in-out infinite",
+              }} />
+              Searching...
+            </span>
+          </div>
+        </PanelSection>
+      </>
     );
   }
 
