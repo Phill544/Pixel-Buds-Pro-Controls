@@ -373,7 +373,8 @@ const Content: FC = () => {
 
   return (
     <>
-      <PanelSection title="Battery">
+      <div style={{ height: 8 }} />
+      <PanelSection>
         <BatteryGrid battery={battery} />
       </PanelSection>
       <div style={{ height: 4 }} />
