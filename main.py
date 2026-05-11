@@ -62,6 +62,18 @@ class Plugin:
         except Exception:
             return False
 
+    async def is_bluetooth_on(self) -> bool:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl", "show",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            return "Powered: yes" in stdout.decode()
+        except Exception:
+            return True  # assume on if we can't check
+
     async def get_device_info(self) -> dict:
         try:
             software = await self._run_pbpctrl("show", "software")

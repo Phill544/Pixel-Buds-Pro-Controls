@@ -29,6 +29,7 @@ interface BatteryInfo {
 const getBattery = callable<[], BatteryInfo>("get_battery");
 const getAnc = callable<[], string>("get_anc");
 const setAnc = callable<[mode: string], boolean>("set_anc");
+const isBluetoothOn = callable<[], boolean>("is_bluetooth_on");
 
 // ── Battery Icon ──
 
@@ -128,7 +129,15 @@ const BatteryGrid: FC<{ battery: BatteryInfo | null }> = ({ battery }) => (
   </div>
 );
 
-// ── ANC Icons (Google Material Symbols Rounded, filled) ──
+// ── Material Symbol Icons (Google Material Symbols Rounded, filled) ──
+
+const IconBluetoothDisabled: FC<{ size?: number; style?: CSSProperties }> = ({ size = 48, style }) => (
+  <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor" style={style}>
+    <path d="M440-384 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l168-168L84-764q-11-11-11-28t11-28q11-11 28-11t28 11l680 680q11 11 11 28t-11 28q-11 11-28 11t-28-11L624-224 508-108q-6 6-13 9t-15 3q-16 0-28-11.5T440-137v-247Zm80 150 46-46-46-46v92Zm44-274-56-56 88-88-76-74v174l-80-80v-191q0-18 12-29.5t28-11.5q8 0 15 3t13 9l172 172q6 6 8.5 13t2.5 15q0 8-2.5 15t-8.5 13L564-508Z"/>
+  </svg>
+);
+
+// ── ANC Icons ──
 
 const IconNoiseControlOn: FC<{ size?: number }> = ({ size = 28 }) => (
   <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor">
@@ -269,13 +278,21 @@ const Content: FC = () => {
   const [battery, setBattery] = useState<BatteryInfo | null>(null);
   const [ancMode, setAncMode] = useState<string>("off");
   const [connected, setConnected] = useState<boolean>(false);
+  const [btOn, setBtOn] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const pollingRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (pollingRef.current) return; // skip if previous poll still running
+    if (pollingRef.current) return;
     pollingRef.current = true;
     try {
+      // Check BT first — instant local call, avoids slow pbpctrl timeout if off
+      const bt = await isBluetoothOn();
+      setBtOn(bt);
+      if (!bt) {
+        setConnected(false);
+        return;
+      }
       const bat = await getBattery();
       setBattery(bat);
       setConnected(true);
@@ -296,6 +313,14 @@ const Content: FC = () => {
   }, [refresh]);
 
   if (loading || !connected) {
+    const title = loading ? "Connecting..." : !btOn ? "Bluetooth Off" : "Not Connected";
+    const subtitle = !btOn
+      ? "Turn on Bluetooth in Steam settings\nto connect your Pixel Buds"
+      : "Pair your Pixel Buds via Bluetooth\nsettings, then open the case nearby";
+    const dotColor = !btOn ? "#e74c3c" : ACCENT;
+    const dotLabel = !btOn ? "Bluetooth disabled" : "Searching...";
+    const shouldPulse = btOn;
+
     return (
       <>
         <style>{`
@@ -312,12 +337,15 @@ const Content: FC = () => {
             padding: "20px 16px 16px",
             gap: 12,
           }}>
-            <FaHeadphones style={{ fontSize: 48, opacity: 0.15 }} />
+            {!btOn
+              ? <IconBluetoothDisabled size={48} style={{ opacity: 0.15 }} />
+              : <FaHeadphones style={{ fontSize: 48, opacity: 0.15 }} />
+            }
             <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.8 }}>
-              {loading ? "Connecting..." : "Not Connected"}
+              {title}
             </span>
             <span style={{ fontSize: 12, opacity: 0.4, textAlign: "center", lineHeight: 1.4, whiteSpace: "pre-line" }}>
-              {"Pair your Pixel Buds via Bluetooth\nsettings, then open the case nearby"}
+              {subtitle}
             </span>
             <span style={{
               display: "flex",
@@ -331,10 +359,10 @@ const Content: FC = () => {
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                background: ACCENT,
-                animation: "pbp-pulse 1.5s ease-in-out infinite",
+                background: dotColor,
+                animation: shouldPulse ? "pbp-pulse 1.5s ease-in-out infinite" : "none",
               }} />
-              Searching...
+              {dotLabel}
             </span>
           </div>
         </PanelSection>
