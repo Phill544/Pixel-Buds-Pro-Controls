@@ -31,7 +31,10 @@ Write-Host "Deploying to ${DeckUser}@${DeckIP}:${Dest}" -ForegroundColor Cyan
 
 Write-Host ""
 Write-Host "Step 1: Creating directories and setting permissions..."
-ssh -t "${DeckUser}@${DeckIP}" "sudo mkdir -p ${Dest}/dist ${Dest}/bin && sudo chown -R ${DeckUser}:${DeckUser} ${Dest}"
+# Delete plugin.json before scp — plugin_loader sometimes reclaims it as root
+# on restart, and `chown -R` alone can race against that. Removing it lets scp
+# recreate it under the deck user cleanly.
+ssh -t "${DeckUser}@${DeckIP}" "sudo mkdir -p ${Dest}/dist ${Dest}/bin && sudo chown -R ${DeckUser}:${DeckUser} ${Dest} && sudo rm -f ${Dest}/plugin.json"
 
 Write-Host ""
 Write-Host "Step 2: Copying all files..."
