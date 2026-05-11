@@ -165,6 +165,11 @@ const ANC_MODES: AncMode[] = [
   { id: "aware",  label: "Transparency", Icon: IconNoiseAware },
 ];
 
+// Border is set via the shorthand in BOTH base and active so React's style
+// diff always sees it as a single changed property and re-applies all three
+// longhands together. Mixing `border` shorthand in one variant with a
+// `borderColor` longhand in another leaves border-color cleared (falling back
+// to currentColor — visibly grey/white) when transitioning back to base.
 const ancCardBase: CSSProperties = {
   flex: 1,
   display: "flex",
@@ -179,6 +184,18 @@ const ancCardBase: CSSProperties = {
   transition: "all 0.15s ease",
 };
 
+const ancCardActive: CSSProperties = {
+  ...ancCardBase,
+  border: `2px solid ${ACCENT}`,
+  background: ACCENT_BG,
+};
+
+const ancCardDisabled: CSSProperties = {
+  ...ancCardBase,
+  opacity: 0.3,
+  cursor: "default",
+};
+
 const ancLabelBase: CSSProperties = {
   fontSize: 10,
   textTransform: "uppercase",
@@ -189,57 +206,63 @@ const ancLabelBase: CSSProperties = {
   opacity: 0.5,
 };
 
-const ancCardFocused: CSSProperties = {
-  ...ancCardBase,
-  background: "rgba(255, 255, 255, 0.12)",
-  borderColor: "rgba(255, 255, 255, 0.8)",
-};
+// SteamUI's `Focusable` strips `className` from its wrapper div but applies
+// `.gpfocus` to the focused element imperatively. We wrap the grid in a plain
+// `<div>` (which keeps our class) and scope CSS to descendants of that wrapper
+// so we only style our cards, not every focused element on screen.
+const ANC_WRAP_CLASS = "pb-anc-wrap";
+const ANC_FADE_CLASS = "pb-anc-fade";
+const ancFocusStyles = `
+.${ANC_WRAP_CLASS} .gpfocus {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.8) !important;
+}
+.${ANC_WRAP_CLASS} .gpfocus .${ANC_FADE_CLASS} {
+  opacity: 1 !important;
+}
+`;
 
-const AncToggleGrid: FC<{ selected: string; onSelect: (id: string) => void }> = ({
-  selected, onSelect,
+const AncToggleGrid: FC<{ selected: string; disabled?: boolean; onSelect: (id: string) => void }> = ({
+  selected, disabled, onSelect,
 }) => {
-  const [focused, setFocused] = useState<string | null>(null);
-
-  const ancCardActive: CSSProperties = { ...ancCardBase, borderColor: ACCENT, background: ACCENT_BG };
-  const ancCardActiveFocused: CSSProperties = { ...ancCardActive, borderColor: "rgba(255, 255, 255, 0.8)" };
-
-  function getCardStyle(id: string): CSSProperties {
-    const isActive = selected === id;
-    const isFocused = focused === id;
-    if (isActive && isFocused) return ancCardActiveFocused;
-    if (isActive) return ancCardActive;
-    if (isFocused) return ancCardFocused;
-    return ancCardBase;
+  if (disabled) {
+    return (
+      <div style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}>
+        {ANC_MODES.map(mode => (
+          <div key={mode.id} style={ancCardDisabled}>
+            <span style={{ opacity: 0.5 }}><mode.Icon size={28} /></span>
+            <span style={{ ...ancLabelBase }}>{mode.label}</span>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
-    // @ts-ignore - flow-children is a valid SP prop but not in the type defs
-    <Focusable flow-children="horizontal" style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}
-      onBlur={() => setFocused(null)}
-    >
-      {ANC_MODES.map(mode => {
-        const isActive = selected === mode.id;
-        const isFocused = focused === mode.id;
-        return (
-          <Focusable
-            key={mode.id}
-            // @ts-ignore - focusWithin is a valid SP prop but not in the type defs
-            focusWithin={false}
-            onActivate={() => onSelect(mode.id)}
-            onFocus={() => setFocused(mode.id)}
-            onBlur={() => setFocused(f => f === mode.id ? null : f)}
-            style={getCardStyle(mode.id)}
-          >
-            <span style={{ color: isActive ? ACCENT : "inherit", opacity: isActive || isFocused ? 1 : 0.5 }}>
-              <mode.Icon size={28} />
-            </span>
-            <span style={{ ...ancLabelBase, color: isActive ? ACCENT : "inherit", opacity: isActive || isFocused ? 1 : 0.5 }}>
-              {mode.label}
-            </span>
-          </Focusable>
-        );
-      })}
-    </Focusable>
+    <div className={ANC_WRAP_CLASS}>
+      <style>{ancFocusStyles}</style>
+      {/* @ts-ignore - flow-children is a valid SP prop but not in the type defs */}
+      <Focusable flow-children="horizontal" style={{ display: "flex", gap: 8, padding: "8px 0 4px" }}>
+        {ANC_MODES.map(mode => {
+          const isActive = selected === mode.id;
+          const fadeClass = isActive ? "" : ANC_FADE_CLASS;
+          return (
+            <Focusable
+              key={mode.id}
+              onActivate={() => onSelect(mode.id)}
+              style={isActive ? ancCardActive : ancCardBase}
+            >
+              <span className={fadeClass} style={{ color: isActive ? ACCENT : "inherit", opacity: isActive ? 1 : 0.5 }}>
+                <mode.Icon size={28} />
+              </span>
+              <span className={fadeClass} style={{ ...ancLabelBase, color: isActive ? ACCENT : "inherit", opacity: isActive ? 1 : 0.5 }}>
+                {mode.label}
+              </span>
+            </Focusable>
+          );
+        })}
+      </Focusable>
+    </div>
   );
 };
 
@@ -309,6 +332,7 @@ const Content: FC = () => {
       <PanelSection title="Noise Control">
         <AncToggleGrid
           selected={ancMode}
+          disabled={ancMode === "unknown"}
           onSelect={async (mode) => {
             setAncMode(mode);
             await setAnc(mode);
