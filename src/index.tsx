@@ -416,11 +416,10 @@ const Content: FC = () => {
 
 export default definePlugin(() => {
   return {
-    name: "Pixel Buds Pro",
+    name: "Pixel Buddy",
     titleView: (
       <div className={staticClasses.Title}>
-        <FaHeadphones style={{ marginRight: 8 }} />
-        Pixel Buds Pro
+        Pixel Buddy
       </div>
     ),
     content: <Content />,

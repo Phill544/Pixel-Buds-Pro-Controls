@@ -1,11 +1,11 @@
 {
-  "name": "Pixel Buds Pro",
+  "name": "Pixel Buddy",
   "author": "Phill Moon",
   "flags": ["_root"],
   "api_version": 1,
   "publish": {
-    "tags": ["bluetooth", "battery", "pixel-buds", "headphones", "anc"],
-    "description": "Monitor battery and control ANC for Google Pixel Buds Pro on Steam Deck.",
+    "tags": ["bluetooth", "battery", "google", "pixel", "buds", "headphones", "anc", "control", "monitor"],
+    "description": "Monitor battery and control ANC for your Google Pixel Buds Pro on Steam Deck.",
     "image": ""
   }
 }

@@ -1,7 +1,7 @@
 {
-  "name": "pixel-buds-decky",
+  "name": "Pixel Buddy",
   "version": "0.1.0",
-  "description": "Monitor battery and control ANC for Google Pixel Buds Pro on Steam Deck",
+  "description": "Monitor battery and control ANC for your Google Pixel Buds Pro on Steam Deck",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
@@ -12,9 +12,13 @@
     "decky",
     "plugin",
     "steam-deck",
-    "pixel-buds",
+	"google",
+    "pixel",
+	"buds",
     "bluetooth",
-    "anc"
+    "anc",
+	"control",
+	"monitor"
   ],
   "author": "Phill Moon <philljm544@gmail.com>",
   "license": "GPL-3.0",
