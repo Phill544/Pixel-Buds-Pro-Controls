@@ -12,7 +12,7 @@ set -e
 
 DECK_IP="${1:?Usage: ./deploy.sh <STEAM_DECK_IP> [DECK_PASSWORD]}"
 DECK_USER="deck"
-PLUGIN_NAME="pixel-buds-decky"
+PLUGIN_NAME="pixel-buddy"
 DEST="/home/${DECK_USER}/homebrew/plugins/${PLUGIN_NAME}"
 
 if [ ! -f "dist/index.js" ]; then

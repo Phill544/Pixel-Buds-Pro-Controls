@@ -1,7 +1,7 @@
 {
   "name": "Pixel Buddy",
   "author": "Phill Moon",
-  "flags": ["_root"],
+  "flags": [],
   "api_version": 1,
   "publish": {
     "tags": ["bluetooth", "battery", "google", "pixel", "buds", "headphones", "anc", "control", "monitor"],

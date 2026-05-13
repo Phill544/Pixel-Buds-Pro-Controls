@@ -1,105 +1,50 @@
-# Pixel Buds Pro — Decky Loader Plugin
+# Pixel Buddy
 
-Monitor battery levels and control ANC for Google Pixel Buds Pro on Steam Deck.
+A Decky Loader plugin that lets you monitor battery and control ANC on your Google Pixel Buds Pro directly from Steam Deck.
+
+![Pixel Buddy screenshot](assets/pixel-buddy-screenshot.jpg)
 
 ## Features
 
-- Battery levels for left bud, right bud, and case with charging indicators
-- ANC mode switching: Off / Noise Cancellation / Transparency / Adaptive
-- Auto-refresh every 30 seconds
+- Battery levels for left bud, right bud, and case, with charging indicators
+- ANC mode switching: Noise Cancellation / Off / Aware
+- Auto-refresh every 5 second
 
-## Prerequisites
+## Install
 
-- Steam Deck with [Decky Loader](https://decky.xyz) installed
-- Pixel Buds Pro paired via SteamOS Bluetooth settings
-- Docker Desktop (for building the pbpctrl binary)
-- Node.js v16.14+ and pnpm v9+
+1. Install [Decky Loader](https://decky.xyz) on your Steam Deck.
+2. Open Decky from the Quick Access Menu and go to the **Store** tab.
+3. Search for **Pixel Buddy** and install.
+4. Pair your Pixel Buds Pro via SteamOS Bluetooth settings, then open the plugin from the Decky menu.
 
-## Setup
+> **Supported devices:** Tested with Pixel Buds Pro (1st gen). Pixel Buds Pro 2 may work but is untested — please [open an issue](https://github.com/Phill544/Pixel-Buddy/issues) if you try it so the support list can be updated.
 
-### 1. Enable SSH on Steam Deck
+## Usage
 
-Switch to Desktop Mode, open Konsole:
-
-```bash
-passwd                          # set a password for the deck user
-sudo systemctl start sshd       # start SSH
-sudo systemctl enable sshd      # auto-start on boot
-ip addr show                    # note your IP (wlan0)
-```
-
-### 2. Build pbpctrl
-
-This plugin wraps [pbpctrl](https://github.com/qzed/pbpctrl), a Rust CLI for Pixel Buds Pro.
-
-**Option A — Docker (from Windows/Linux):**
-
-```bash
-docker build -t pbpctrl-builder ./backend
-docker run --rm -v "%cd%/bin:/backend/out" pbpctrl-builder
-```
-
-On Git Bash or WSL, use `$(pwd)` instead of `%cd%`.
-
-**Option B — Build on Steam Deck directly:**
-
-```bash
-ssh deck@<DECK_IP>
-sudo steamos-readonly disable
-sudo pacman -S rust protobuf dbus pkg-config base-devel
-git clone --branch v0.1.8 --depth 1 https://github.com/qzed/pbpctrl.git /tmp/pbpctrl
-cd /tmp/pbpctrl && cargo build --release
-cp target/release/pbpctrl ~/pbpctrl
-```
-
-### 3. Build the frontend
-
-```bash
-pnpm install
-pnpm run build
-```
-
-### 4. Deploy to Steam Deck
-
-```bash
-./deploy.sh <STEAM_DECK_IP>
-```
-
-Or manually:
-
-```bash
-DECK_IP=<your_ip>
-DEST="deck@${DECK_IP}:~/homebrew/plugins/pixel-buds-decky"
-ssh deck@${DECK_IP} "mkdir -p ~/homebrew/plugins/pixel-buds-decky/{dist,bin}"
-scp dist/index.js ${DEST}/dist/
-scp bin/pbpctrl ${DEST}/bin/
-scp main.py plugin.json package.json ${DEST}/
-ssh deck@${DECK_IP} "chmod +x ~/homebrew/plugins/pixel-buds-decky/bin/pbpctrl"
-ssh deck@${DECK_IP} "sudo systemctl restart plugin_loader"
-```
+Open the case near your Deck so the buds connect, then open the plugin. Battery levels appear automatically, and you can tap any of the three ANC cards to switch mode. The plugin polls the buds every 5 seconds.
 
 ## Troubleshooting
 
-### pbpctrl can't connect to the buds
+**The plugin says "Not Connected" even though my buds are connected to the Deck.**
 
-1. Make sure buds are out of the case and connected via SteamOS Bluetooth
-2. Test manually via SSH: `~/homebrew/plugins/pixel-buds-decky/bin/pbpctrl show Battery`
-3. If that fails, enable BlueZ experimental features:
+1. Make sure the buds are out of the case and connected via SteamOS Bluetooth settings.
+2. SSH into the Deck and run the bundled binary directly to see the raw error:
    ```bash
-   sudo steamos-readonly disable
-   sudo sed -i 's/#Experimental = false/Experimental = true/' /etc/bluetooth/main.conf
-   sudo systemctl restart bluetooth
+   ~/homebrew/plugins/pixel-buddy/bin/pbpctrl show battery
    ```
+   If that command works but the plugin still shows "Not Connected", please [open an issue](https://github.com/Phill544/Pixel-Buddy/issues) with the output.
 
-### Plugin doesn't appear in Decky
+**The plugin doesn't appear in Decky.**
 
-Restart Decky Loader: `sudo systemctl restart plugin_loader`
+Restart the loader: `sudo systemctl restart plugin_loader`.
 
 ## Credits
 
-- [pbpctrl](https://github.com/qzed/pbpctrl) by qzed — Pixel Buds Pro Bluetooth protocol implementation
-- [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) — Steam Deck plugin framework
+- [pbpctrl](https://github.com/qzed/pbpctrl) by Maximilian Luz — the Rust CLI that talks to the Pixel Buds Pro over Bluetooth
+- [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) — the Steam Deck plugin framework
 
 ## License
 
-GPL-3.0
+Pixel Buddy is released under the [MIT License](LICENSE).
+
+The bundled [`pbpctrl`](https://github.com/qzed/pbpctrl) binary is by Maximilian Luz, dual-licensed Apache-2.0 / MIT — redistributed here under MIT, with attribution in [`licenses/pbpctrl-LICENSE`](licenses/pbpctrl-LICENSE).
